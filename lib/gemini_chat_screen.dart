@@ -74,6 +74,18 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     super.dispose();
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   void _stopCurrentStream() {
     if (_currentStreamSubscription != null && _currentStreamId != null) {
       _currentStreamSubscription!.cancel();
@@ -84,8 +96,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
       });
 
       if (_currentStreamId != null) {
-        _streamManager.errorStream(
-            _currentStreamId!, 'Stream stopped by user');
+        _streamManager.errorStream(_currentStreamId!, 'Stream stopped by user');
         _currentStreamId = null;
       }
     }
@@ -127,76 +138,81 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
                 itemBuilder: itemBuilder,
               );
             },
-            imageMessageBuilder: (
-              context,
-              message,
-              index, {
-              required bool isSentByMe,
-              MessageGroupStatus? groupStatus,
-            }) =>
-                FlyerChatImageMessage(
-              message: message,
-              index: index,
-              showTime: false,
-              showStatus: false,
-            ),
+            imageMessageBuilder:
+                (
+                  context,
+                  message,
+                  index, {
+                  required bool isSentByMe,
+                  MessageGroupStatus? groupStatus,
+                }) => FlyerChatImageMessage(
+                  message: message,
+                  index: index,
+                  showTime: false,
+                  showStatus: false,
+                ),
             composerBuilder: (context) => _Composer(
               isStreaming: _isStreaming,
               onStop: _stopCurrentStream,
             ),
-            textMessageBuilder: (
-              context,
-              message,
-              index, {
-              required bool isSentByMe,
-              MessageGroupStatus? groupStatus,
-            }) =>
-                FlyerChatTextMessage(
-              message: message,
-              index: index,
-              showTime: false,
-              showStatus: false,
-              receivedBackgroundColor: Colors.transparent,
-              padding: message.authorId == _agent.id
-                  ? EdgeInsets.zero
-                  : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            textStreamMessageBuilder: (
-              context,
-              message,
-              index, {
-              required bool isSentByMe,
-              MessageGroupStatus? groupStatus,
-            }) {
-              final streamState = context
-                  .watch<GeminiStreamManager>()
-                  .getState(message.streamId);
-              return FlyerChatTextStreamMessage(
-                message: message,
-                index: index,
-                streamState: streamState,
-                chunkAnimationDuration: _kChunkAnimationDuration,
-                showTime: false,
-                showStatus: false,
-                receivedBackgroundColor: Colors.transparent,
-                padding: message.authorId == _agent.id
-                    ? EdgeInsets.zero
-                    : const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              );
-            },
+            textMessageBuilder:
+                (
+                  context,
+                  message,
+                  index, {
+                  required bool isSentByMe,
+                  MessageGroupStatus? groupStatus,
+                }) => FlyerChatTextMessage(
+                  message: message,
+                  index: index,
+                  showTime: false,
+                  showStatus: false,
+                  receivedBackgroundColor: Colors.transparent,
+                  padding: message.authorId == _agent.id
+                      ? EdgeInsets.zero
+                      : const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                ),
+            textStreamMessageBuilder:
+                (
+                  context,
+                  message,
+                  index, {
+                  required bool isSentByMe,
+                  MessageGroupStatus? groupStatus,
+                }) {
+                  final streamState = context
+                      .watch<GeminiStreamManager>()
+                      .getState(message.streamId);
+                  return FlyerChatTextStreamMessage(
+                    message: message,
+                    index: index,
+                    streamState: streamState,
+                    chunkAnimationDuration: _kChunkAnimationDuration,
+                    showTime: false,
+                    showStatus: false,
+                    receivedBackgroundColor: Colors.transparent,
+                    padding: message.authorId == _agent.id
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                  );
+                },
           ),
           chatController: _chatController,
           crossCache: _crossCache,
           currentUserId: _currentUser.id,
           onAttachmentTap: _handleAttachmentTap,
           onMessageSend: _handleMessageSend,
-          resolveUser: (id) => Future.value(
-            switch (id) {
-              'me' => _currentUser,
-              'agent' => _agent,
-              _ => null,
-            },
-          ),
+          resolveUser: (id) => Future.value(switch (id) {
+            'me' => _currentUser,
+            'agent' => _agent,
+            _ => null,
+          }),
           theme: ChatTheme.fromThemeData(theme),
         ),
       ),
@@ -213,6 +229,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
         metadata: isOnlyEmoji(text) ? {'isOnlyEmoji': true} : null,
       ),
     );
+    _scrollToBottom();
 
     _sendContent(Content.text(text));
   }
@@ -307,10 +324,7 @@ class _Composer extends StatefulWidget {
   final bool isStreaming;
   final VoidCallback? onStop;
 
-  const _Composer({
-    this.isStreaming = false,
-    this.onStop,
-  });
+  const _Composer({this.isStreaming = false, this.onStop});
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -377,8 +391,9 @@ class _ComposerState extends State<_Composer> {
           child: Column(
             children: [
               Padding(
-                padding: EdgeInsets.only(bottom: bottomSafeArea)
-                    .add(const EdgeInsets.all(8.0)),
+                padding: EdgeInsets.only(
+                  bottom: bottomSafeArea,
+                ).add(const EdgeInsets.all(8.0)),
                 child: Row(
                   children: [
                     if (onAttachmentTap != null)
@@ -400,12 +415,12 @@ class _ComposerState extends State<_Composer> {
                           ),
                           border: const OutlineInputBorder(
                             borderSide: BorderSide.none,
-                            borderRadius:
-                                BorderRadius.all(Radius.circular(24)),
+                            borderRadius: BorderRadius.all(Radius.circular(24)),
                           ),
                           filled: true,
-                          fillColor: theme.surfaceContainerHigh
-                              .withValues(alpha: 0.8),
+                          fillColor: theme.surfaceContainerHigh.withValues(
+                            alpha: 0.8,
+                          ),
                           hoverColor: Colors.transparent,
                         ),
                         style: theme.bodyMedium.copyWith(
