@@ -99,14 +99,18 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     _isUserAtBottom = isAtBottom;
   }
 
-  void _scrollToBottom() {
+  void _maybeScrollToBottom() {
     if (!_isUserAtBottom) return;
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
     if (_scrollToBottomScheduled) return;
     _scrollToBottomScheduled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottomScheduled = false;
-      if (!mounted || !_scrollController.hasClients || !_isUserAtBottom) return;
+      if (!mounted || !_scrollController.hasClients) return;
 
       if (_scrollToBottomInProgress) {
         _scrollToBottomRequestedWhileInProgress = true;
@@ -179,6 +183,8 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
             chatAnimatedListBuilder: (context, itemBuilder) {
               return ChatAnimatedList(
                 scrollController: _scrollController,
+                shouldScrollToEndWhenSendingMessage: false,
+                shouldScrollToEndWhenAtBottom: false,
                 itemBuilder: itemBuilder,
               );
             },
@@ -273,7 +279,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
         metadata: isOnlyEmoji(text) ? {'isOnlyEmoji': true} : null,
       ),
     );
-    _scrollToBottom();
+    _maybeScrollToBottom();
 
     _sendContent(Content.text(text));
   }
@@ -293,7 +299,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
         source: image.path,
       ),
     );
-    _scrollToBottom();
+    _maybeScrollToBottom();
 
     final bytes = await _crossCache.get(image.path);
     _sendContent(Content.data('image/jpeg', bytes));
@@ -321,7 +327,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
         streamId: streamId,
       );
       await _chatController.insertMessage(streamMessage!);
-      _scrollToBottom();
+      _maybeScrollToBottom();
       _streamManager.startStream(streamId, streamMessage!);
     }
 
@@ -341,13 +347,13 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
             if (streamMessage == null) return;
 
             _streamManager.addChunk(streamId, textChunk);
-            _scrollToBottom();
+            _maybeScrollToBottom();
           }
         },
         onDone: () async {
           if (streamMessage != null) {
             await _streamManager.completeStream(streamId);
-            _scrollToBottom();
+            _maybeScrollToBottom();
           }
 
           if (mounted) {
@@ -360,12 +366,12 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
         },
         onError: (error) async {
           _handleStreamError(streamId, error, streamMessage);
-          _scrollToBottom();
+          _maybeScrollToBottom();
         },
       );
     } catch (error) {
       _handleStreamError(streamId, error, streamMessage);
-      _scrollToBottom();
+      _maybeScrollToBottom();
     }
   }
 }
