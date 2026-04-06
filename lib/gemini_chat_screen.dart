@@ -18,6 +18,7 @@ import 'gemini_stream_manager.dart';
 import 'in_memory_chat_controller.dart';
 
 const Duration _kChunkAnimationDuration = Duration(milliseconds: 350);
+const double _kAutoScrollBottomThreshold = 50.0;
 
 class GeminiChatScreen extends StatefulWidget {
   final String geminiApiKey;
@@ -44,6 +45,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
   bool _isStreaming = false;
   StreamSubscription? _currentStreamSubscription;
   String? _currentStreamId;
+  bool _isUserAtBottom = true;
   bool _scrollToBottomScheduled = false;
   bool _scrollToBottomInProgress = false;
   bool _scrollToBottomRequestedWhileInProgress = false;
@@ -51,6 +53,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_handleScrollControllerChanged);
     _streamManager = GeminiStreamManager(
       chatController: _chatController,
       chunkAnimationDuration: _kChunkAnimationDuration,
@@ -65,6 +68,9 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     );
 
     _chatSession = _model.startChat();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateIsUserAtBottom(),
+    );
   }
 
   @override
@@ -72,18 +78,35 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     _currentStreamSubscription?.cancel();
     _streamManager.dispose();
     _chatController.dispose();
+    _scrollController.removeListener(_handleScrollControllerChanged);
     _scrollController.dispose();
     _crossCache.dispose();
     super.dispose();
   }
 
+  void _handleScrollControllerChanged() {
+    _updateIsUserAtBottom();
+  }
+
+  void _updateIsUserAtBottom() {
+    if (!_scrollController.hasClients) return;
+
+    final position = _scrollController.position;
+    final isAtBottom =
+        _scrollController.offset >=
+        position.maxScrollExtent - _kAutoScrollBottomThreshold;
+    if (isAtBottom == _isUserAtBottom) return;
+    _isUserAtBottom = isAtBottom;
+  }
+
   void _scrollToBottom() {
+    if (!_isUserAtBottom) return;
     if (_scrollToBottomScheduled) return;
     _scrollToBottomScheduled = true;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottomScheduled = false;
-      if (!mounted || !_scrollController.hasClients) return;
+      if (!mounted || !_scrollController.hasClients || !_isUserAtBottom) return;
 
       if (_scrollToBottomInProgress) {
         _scrollToBottomRequestedWhileInProgress = true;
@@ -98,12 +121,12 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
             curve: Curves.easeOut,
           )
           .whenComplete(() {
-        _scrollToBottomInProgress = false;
-        if (_scrollToBottomRequestedWhileInProgress) {
-          _scrollToBottomRequestedWhileInProgress = false;
-          _scrollToBottom();
-        }
-      });
+            _scrollToBottomInProgress = false;
+            if (_scrollToBottomRequestedWhileInProgress) {
+              _scrollToBottomRequestedWhileInProgress = false;
+              _scrollToBottom();
+            }
+          });
     });
   }
 
