@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cross_cache/cross_cache.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart'
     hide InMemoryChatController;
@@ -92,11 +93,20 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     if (!_scrollController.hasClients) return;
 
     final position = _scrollController.position;
-    final isAtBottom =
-        _scrollController.offset >=
+    final isNearBottom = position.pixels >=
         position.maxScrollExtent - _kAutoScrollBottomThreshold;
+
+    final isUserScrollingUp =
+        position.userScrollDirection == ScrollDirection.forward;
+
+    final isAtBottom =
+        isNearBottom || (_scrollToBottomInProgress && !isUserScrollingUp);
     if (isAtBottom == _isUserAtBottom) return;
     _isUserAtBottom = isAtBottom;
+
+    if (_isUserAtBottom && _isStreaming) {
+      _maybeScrollToBottom();
+    }
   }
 
   void _maybeScrollToBottom() {
@@ -111,6 +121,10 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottomScheduled = false;
       if (!mounted || !_scrollController.hasClients) return;
+      if (!_isUserAtBottom) return;
+
+      final position = _scrollController.position;
+      if (position.maxScrollExtent - position.pixels <= 1.0) return;
 
       if (_scrollToBottomInProgress) {
         _scrollToBottomRequestedWhileInProgress = true;
@@ -120,7 +134,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
       _scrollToBottomInProgress = true;
       _scrollController
           .animateTo(
-            _scrollController.position.maxScrollExtent,
+            position.maxScrollExtent,
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOut,
           )
@@ -128,7 +142,7 @@ class _GeminiChatScreenState extends State<GeminiChatScreen> {
             _scrollToBottomInProgress = false;
             if (_scrollToBottomRequestedWhileInProgress) {
               _scrollToBottomRequestedWhileInProgress = false;
-              _scrollToBottom();
+              _maybeScrollToBottom();
             }
           });
     });
